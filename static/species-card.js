@@ -46,33 +46,42 @@ function buildSpeciesCardHTML(species, atlasUrl) {
 
     const scientificName = scientificParts.join(' ');
     const description = species.Community_Description || '';
+    const category = species.Category && species.Category.Name ? species.Category.Name : '';
 
-    // Build identifiers
-    const identifiers = [];
-    if (species.SKU) identifiers.push(`SKU: ${species.SKU}`);
-    if (species.PI_Number) identifiers.push(`PI: ${species.PI_Number}`);
+    // Get image ID (prefer Community_Gallery, fallback to Picture)
+    let imageId = null;
+    if (species.Community_Gallery && Array.isArray(species.Community_Gallery) && species.Community_Gallery.length > 0) {
+        imageId = species.Community_Gallery[0].directus_files_id;
+    } else if (species.Picture) {
+        imageId = species.Picture;
+    }
 
-    let html = '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; margin-bottom: 20px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">';
-    html += '<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">';
-    html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M12 9v13"></path><path d="M9 15l-2 2"></path><path d="M15 15l2 2"></path></svg>';
-    html += `<h3 style="margin: 0; font-size: 1.4rem; font-weight: 600;">${commonName}</h3>`;
-    html += '</div>';
+    let html = '<div style="background: linear-gradient(135deg, #4ade80, #22c55e); border-radius: 12px; overflow: hidden; margin-bottom: 20px; color: #0f172a; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">';
+
+    // Image section (if available)
+    if (imageId) {
+        const imageUrl = `https://atlas.growrare.com/image-proxy.php?id=${imageId}&width=800&height=300&fit=cover`;
+        html += `<div style="width: 100%; height: 200px; background-image: url('${imageUrl}'); background-size: cover; background-position: center;"></div>`;
+    }
+
+    html += '<div style="padding: 20px;">';
+    html += `<h3 style="margin: 0 0 8px 0; font-size: 1.5rem; font-weight: 700;">${commonName}</h3>`;
 
     if (scientificName) {
-        html += `<div style="font-size: 1.1rem; margin-bottom: 12px; opacity: 0.95;">${scientificName}</div>`;
+        html += `<div style="font-size: 1.05rem; margin-bottom: 12px; opacity: 0.85;">${scientificName}</div>`;
+    }
+
+    if (category) {
+        html += `<div style="display: inline-block; background: rgba(15, 23, 42, 0.1); padding: 4px 12px; border-radius: 999px; font-size: 0.85rem; font-weight: 600; margin-bottom: 12px;">${category}</div>`;
     }
 
     if (description) {
-        const truncatedDesc = description.length > 300 ? description.substring(0, 300) + '...' : description;
-        html += `<div style="font-size: 0.95rem; line-height: 1.6; margin-bottom: 12px; opacity: 0.9;">${truncatedDesc}</div>`;
+        const truncatedDesc = description.length > 250 ? description.substring(0, 250) + '...' : description;
+        html += `<div style="font-size: 0.95rem; line-height: 1.6; margin-bottom: 16px; opacity: 0.85;">${truncatedDesc}</div>`;
     }
 
-    if (identifiers.length > 0) {
-        html += `<div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 12px;">${identifiers.join(' • ')}</div>`;
-    }
-
-    html += `<a href="${atlasUrl}" target="_blank" rel="noopener" style="display: inline-block; background: rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: 500; transition: background 0.2s; backdrop-filter: blur(10px);">📖 View Full Details on Seed Atlas →</a>`;
-    html += '</div>';
+    html += `<a href="${atlasUrl}" target="_blank" rel="noopener" style="display: inline-block; background: #0f172a; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; transition: background 0.2s;">📖 View Full Details on Seed Atlas →</a>`;
+    html += '</div></div>';
 
     return html;
 }
