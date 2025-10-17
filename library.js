@@ -40,7 +40,6 @@ plugin.init = async (params) => {
             const topicData = await Topics.post({
                 uid: req.user.uid,
                 title: title,
-                slug: slug || null, // Use the slug from atlas page if provided
                 content: markdown || `Discussion about ${title}\n\n[View on Seed Atlas](${url})`,
                 cid: parseInt(cid) || 81,
                 tags: tags ? JSON.parse(tags) : [],
@@ -50,6 +49,11 @@ plugin.init = async (params) => {
             // Associate with article ID using blog comments plugin metadata
             if (topicData && topicData.topicData) {
                 const tid = topicData.topicData.tid;
+
+                // Set custom slug to match atlas page
+                if (slug) {
+                    await Topics.setTopicField(tid, 'slug', `${tid}/${slug}`);
+                }
 
                 // Store article association
                 const db = require.main.require('./src/database');
