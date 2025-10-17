@@ -64,6 +64,11 @@ plugin.init = async (params) => {
     // Endpoint to find topic by atlas URL
     app.get('/api/topic-by-url', async (req, res) => {
         try {
+            // Add CORS headers to allow requests from atlas.growrare.com
+            res.header('Access-Control-Allow-Origin', 'https://atlas.growrare.com');
+            res.header('Access-Control-Allow-Methods', 'GET');
+            res.header('Access-Control-Allow-Headers', 'Content-Type');
+
             const url = req.query.url;
             if (!url) {
                 return res.json({ error: 'URL parameter required' });
