@@ -94,12 +94,14 @@ plugin.init = async (params) => {
 // Inject species data card into topic pages
 plugin.addSpeciesCard = async (data) => {
     const tid = data.tid;
+    console.log('addSpeciesCard called for topic:', tid);
 
     try {
         const db = require.main.require('./src/database');
 
         // Check if this topic is linked to a species
         const articleData = await db.getObject(`topic:${tid}:article`);
+        console.log('Article data for topic', tid, ':', articleData);
 
         if (!articleData || !articleData.url) {
             return data;
@@ -115,14 +117,19 @@ plugin.addSpeciesCard = async (data) => {
 
         // Fetch species data from Directus API
         const speciesData = await fetchSpeciesData(slug);
+        console.log('Fetched species data:', speciesData ? 'Success' : 'Failed');
 
         if (speciesData) {
             // Build the species card HTML
             const cardHtml = buildSpeciesCard(speciesData, articleData.url);
+            console.log('Built card HTML (first 200 chars):', cardHtml.substring(0, 200));
 
             // Inject the card at the beginning of the topic content
             if (data.posts && data.posts.length > 0) {
+                console.log('Injecting card into first post');
                 data.posts[0].content = cardHtml + data.posts[0].content;
+            } else {
+                console.log('No posts found in data');
             }
         }
     } catch (err) {
