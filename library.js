@@ -6,6 +6,17 @@ const plugin = {};
 plugin.init = async (params) => {
     const { app } = params;
 
+    // Handle GET requests (for testing or direct access)
+    app.get('/create-linked-topic', async (req, res) => {
+        // Check if user is logged in
+        if (!req.user || !req.user.uid) {
+            return res.redirect('/login?local=1&next=/create-linked-topic');
+        }
+
+        // Show simple message if accessed directly
+        res.send('This endpoint requires POST data. Please use the "Start a Discussion" button on species pages.');
+    });
+
     // Add route to handle topic creation
     app.post('/create-linked-topic', async (req, res) => {
         try {
