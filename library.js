@@ -22,6 +22,8 @@ plugin.init = async (params) => {
         try {
             const { title, markdown, cid, tags, id, url, slug } = req.body;
 
+            console.log('Create linked topic request:', { title, slug, id, url });
+
             // Validate required fields
             if (!title || !id || !url) {
                 return res.status(400).send('Missing required fields');
@@ -52,7 +54,12 @@ plugin.init = async (params) => {
 
                 // Set custom slug to match atlas page
                 if (slug) {
-                    await Topics.setTopicField(tid, 'slug', `${tid}/${slug}`);
+                    const customSlug = `${tid}/${slug}`;
+                    console.log(`Setting custom slug for topic ${tid}: ${customSlug}`);
+                    await Topics.setTopicField(tid, 'slug', customSlug);
+                    console.log('Slug set successfully');
+                } else {
+                    console.log('No slug provided from atlas page');
                 }
 
                 // Store article association
