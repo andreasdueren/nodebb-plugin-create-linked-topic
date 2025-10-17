@@ -1,0 +1,23 @@
+{
+  "name": "nodebb-plugin-create-linked-topic",
+  "version": "1.0.0",
+  "description": "Helper endpoint to create NodeBB blog comments topics from external sites",
+  "main": "library.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "nodebb",
+    "plugin",
+    "blog",
+    "comments",
+    "external"
+  ],
+  "author": "growrare.com",
+  "license": "MIT",
+  "nbbpm": {
+    "compatibility": "^3.0.0"
+  },
+  "peerDependencies": {},
+  "dependencies": {}
+}
