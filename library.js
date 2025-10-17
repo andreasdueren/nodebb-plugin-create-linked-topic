@@ -9,7 +9,46 @@ const DIRECTUS_URL = 'https://data.flr.sc';
 const DIRECTUS_TOKEN = 'dHlxHjboNFSFr7x4aXb7giXsyKVrZgEs';
 
 plugin.init = async (params) => {
-    const { app } = params;
+    const { app, router, middleware } = params;
+
+    // API endpoint to fetch species data for a topic
+    app.get('/api/species-for-topic/:tid', async (req, res) => {
+        try {
+            const tid = req.params.tid;
+            const db = require.main.require('./src/database');
+
+            // Check if this topic is linked to a species
+            const articleData = await db.getObject(`topic:${tid}:article`);
+
+            if (!articleData || !articleData.url) {
+                return res.json({ error: 'No species linked to this topic' });
+            }
+
+            // Extract species slug from URL
+            const urlMatch = articleData.url.match(/\/variety\/(.+)$/);
+            if (!urlMatch) {
+                return res.json({ error: 'Invalid species URL' });
+            }
+
+            const slug = urlMatch[1];
+
+            // Fetch species data from Directus API
+            const speciesData = await fetchSpeciesData(slug);
+
+            if (!speciesData) {
+                return res.json({ error: 'Species not found' });
+            }
+
+            // Return species data with atlas URL
+            res.json({
+                species: speciesData,
+                atlasUrl: articleData.url
+            });
+        } catch (err) {
+            console.error('Error fetching species for topic:', err);
+            res.status(500).json({ error: err.message });
+        }
+    });
 
     // Handle GET requests (for testing or direct access)
     app.get('/create-linked-topic', async (req, res) => {
