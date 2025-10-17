@@ -61,7 +61,7 @@ plugin.init = async (params) => {
     }
     const { app, router, middleware } = params;
 
-    // Endpoint to find topic by atlas URL
+    // Endpoint to find topic by atlas URL and optionally link it to an article ID
     app.get('/api/topic-by-url', async (req, res) => {
         try {
             // Add CORS headers to allow requests from atlas.growrare.com
@@ -70,6 +70,8 @@ plugin.init = async (params) => {
             res.header('Access-Control-Allow-Headers', 'Content-Type');
 
             const url = req.query.url;
+            const articleId = req.query.articleId; // Optional - if provided, create association
+
             if (!url) {
                 return res.json({ error: 'URL parameter required' });
             }
@@ -77,12 +79,21 @@ plugin.init = async (params) => {
             const db = require.main.require('./src/database');
 
             // Search through all article associations to find matching URL
-            // This is a bit inefficient but works for now
             const keys = await db.getSortedSetRange('topics:tid', 0, -1);
 
             for (const tid of keys) {
                 const articleData = await db.getObject(`topic:${tid}:article`);
                 if (articleData && articleData.url === url) {
+                    // If article ID is provided, create the association so NodeBB blog comments plugin can find it
+                    if (articleId) {
+                        console.log(`Linking article ${articleId} to existing topic ${tid}`);
+                        await db.setObject(`article:${articleId}`, {
+                            tid: tid,
+                            url: url,
+                            timestamp: Date.now()
+                        });
+                    }
+
                     return res.json({
                         found: true,
                         tid: tid,
