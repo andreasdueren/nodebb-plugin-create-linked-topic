@@ -20,7 +20,7 @@ plugin.init = async (params) => {
     // Add route to handle topic creation
     app.post('/create-linked-topic', async (req, res) => {
         try {
-            const { title, markdown, cid, tags, id, url } = req.body;
+            const { title, markdown, cid, tags, id, url, slug } = req.body;
 
             // Validate required fields
             if (!title || !id || !url) {
@@ -40,6 +40,7 @@ plugin.init = async (params) => {
             const topicData = await Topics.post({
                 uid: req.user.uid,
                 title: title,
+                slug: slug || null, // Use the slug from atlas page if provided
                 content: markdown || `Discussion about ${title}\n\n[View on Seed Atlas](${url})`,
                 cid: parseInt(cid) || 81,
                 tags: tags ? JSON.parse(tags) : [],
