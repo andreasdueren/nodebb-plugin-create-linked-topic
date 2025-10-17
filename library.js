@@ -8,7 +8,57 @@ const plugin = {};
 const DIRECTUS_URL = 'https://data.flr.sc';
 const DIRECTUS_TOKEN = 'dHlxHjboNFSFr7x4aXb7giXsyKVrZgEs';
 
+// Bot user configuration
+let BOT_UID = null;
+
+async function getOrCreateBotUser() {
+    if (BOT_UID) return BOT_UID;
+
+    const User = require.main.require('./src/user');
+    const db = require.main.require('./src/database');
+
+    // Try to find existing bot user
+    const existingUid = await User.getUidByUsername('seed-atlas-bot');
+
+    if (existingUid) {
+        BOT_UID = existingUid;
+        console.log('Found existing bot user with UID:', BOT_UID);
+        return BOT_UID;
+    }
+
+    // Create bot user
+    try {
+        const userData = await User.create({
+            username: 'seed-atlas-bot',
+            email: 'bot@atlas.growrare.com',
+            password: require('crypto').randomBytes(32).toString('hex')
+        });
+
+        BOT_UID = userData.uid;
+
+        // Update user profile
+        await User.setUserFields(BOT_UID, {
+            fullname: 'Seed Atlas Bot',
+            signature: 'Automated topics created from the Seed Atlas',
+            'icon:text': '🌱',
+            'icon:bgColor': '#22c55e'
+        });
+
+        console.log('Created bot user with UID:', BOT_UID);
+        return BOT_UID;
+    } catch (err) {
+        console.error('Error creating bot user:', err);
+        throw err;
+    }
+}
+
 plugin.init = async (params) => {
+    // Initialize bot user
+    try {
+        await getOrCreateBotUser();
+    } catch (err) {
+        console.error('Failed to initialize bot user:', err);
+    }
     const { app, router, middleware } = params;
 
     // Debug endpoint to check article associations
@@ -101,8 +151,11 @@ plugin.init = async (params) => {
             const Topics = require.main.require('./src/topics');
             const Posts = require.main.require('./src/posts');
 
+            // Get bot user UID
+            const botUid = await getOrCreateBotUser();
+
             const topicData = await Topics.post({
-                uid: req.user.uid,
+                uid: botUid,
                 title: title,
                 content: `[View ${title} on Seed Atlas](${url})`,
                 cid: parseInt(cid) || 81,
