@@ -11,6 +11,24 @@ const DIRECTUS_TOKEN = 'dHlxHjboNFSFr7x4aXb7giXsyKVrZgEs';
 plugin.init = async (params) => {
     const { app, router, middleware } = params;
 
+    // Debug endpoint to check article associations
+    app.get('/api/check-article/:articleId', async (req, res) => {
+        try {
+            const articleId = req.params.articleId;
+            const db = require.main.require('./src/database');
+
+            const articleData = await db.getObject(`article:${articleId}`);
+
+            res.json({
+                articleId: articleId,
+                found: !!articleData,
+                data: articleData
+            });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     // API endpoint to fetch species data for a topic
     app.get('/api/species-for-topic/:tid', async (req, res) => {
         try {
