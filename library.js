@@ -61,6 +61,37 @@ plugin.init = async (params) => {
     }
     const { app, router, middleware } = params;
 
+    // Endpoint to find topic by atlas URL
+    app.get('/api/topic-by-url', async (req, res) => {
+        try {
+            const url = req.query.url;
+            if (!url) {
+                return res.json({ error: 'URL parameter required' });
+            }
+
+            const db = require.main.require('./src/database');
+
+            // Search through all article associations to find matching URL
+            // This is a bit inefficient but works for now
+            const keys = await db.getSortedSetRange('topics:tid', 0, -1);
+
+            for (const tid of keys) {
+                const articleData = await db.getObject(`topic:${tid}:article`);
+                if (articleData && articleData.url === url) {
+                    return res.json({
+                        found: true,
+                        tid: tid,
+                        url: articleData.url
+                    });
+                }
+            }
+
+            res.json({ found: false });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     // Debug endpoint to check article associations
     app.get('/api/check-article/:articleId', async (req, res) => {
         try {
