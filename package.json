@@ -1,6 +1,6 @@
 {
   "name": "nodebb-plugin-create-linked-topic",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Helper endpoint to create NodeBB blog comments topics from external sites",
   "main": "library.js",
   "scripts": {
@@ -19,5 +19,7 @@
     "compatibility": "^3.0.0"
   },
   "peerDependencies": {},
-  "dependencies": {}
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
 }

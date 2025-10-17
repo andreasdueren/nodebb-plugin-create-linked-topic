@@ -2,12 +2,16 @@
   "id": "nodebb-plugin-create-linked-topic",
   "name": "Create Linked Topic Helper",
   "description": "Helper endpoint to create NodeBB blog comments topics from external sites",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "library": "./library.js",
   "hooks": [
     {
       "hook": "static:app.load",
       "method": "init"
+    },
+    {
+      "hook": "filter:topic.get",
+      "method": "addSpeciesCard"
     }
   ]
 }
