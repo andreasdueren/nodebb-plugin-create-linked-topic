@@ -170,6 +170,59 @@ plugin.init = async (params) => {
         }
     });
 
+    // Endpoint to clean up stale topic associations (when topics have been deleted)
+    app.get('/api/cleanup-stale-associations', async (req, res) => {
+        try {
+            const db = require.main.require('./src/database');
+            const Topics = require.main.require('./src/topics');
+
+            // Get all article IDs from blog-comments hash
+            const blogCommentsHash = await db.getObject('blog-comments');
+
+            const results = {
+                checked: 0,
+                cleaned: 0,
+                errors: []
+            };
+
+            if (blogCommentsHash) {
+                for (const [articleId, tid] of Object.entries(blogCommentsHash)) {
+                    results.checked++;
+
+                    try {
+                        // Check if topic still exists
+                        const topicExists = await Topics.exists(tid);
+
+                        if (!topicExists) {
+                            console.log(`Cleaning up stale association: article ${articleId} -> topic ${tid} (deleted)`);
+
+                            // Remove from blog-comments hash
+                            await db.deleteObjectField('blog-comments', articleId);
+
+                            // Remove article association
+                            await db.delete(`article:${articleId}`);
+
+                            // Note: topic:${tid}:article is already deleted with the topic
+
+                            results.cleaned++;
+                        }
+                    } catch (err) {
+                        console.error(`Error checking article ${articleId}:`, err.message);
+                        results.errors.push(`${articleId}: ${err.message}`);
+                    }
+                }
+            }
+
+            res.json({
+                success: true,
+                ...results
+            });
+        } catch (err) {
+            console.error('Error cleaning up stale associations:', err);
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     // Handle GET requests (for testing or direct access)
     app.get('/create-linked-topic', async (req, res) => {
         // Show simple message if accessed directly
@@ -532,6 +585,39 @@ plugin.replaceSpeciesCard = async (data) => {
     } catch (err) {
         console.error('Error replacing species card:', err);
         console.error('Stack:', err.stack);
+    }
+
+    return data;
+};
+
+// Hook called when a topic is deleted - clean up associations
+plugin.onTopicDelete = async (data) => {
+    const tid = data.tid;
+    console.log('Topic deleted, cleaning up associations for topic:', tid);
+
+    try {
+        const db = require.main.require('./src/database');
+
+        // Get the article association for this topic
+        const articleData = await db.getObject(`topic:${tid}:article`);
+
+        if (articleData && articleData.id) {
+            console.log(`Removing associations for article ${articleData.id}`);
+
+            // Remove from blog-comments hash
+            await db.deleteObjectField('blog-comments', articleData.id);
+
+            // Remove article association
+            await db.delete(`article:${articleData.id}`);
+
+            console.log(`Cleaned up associations for article ${articleData.id}`);
+        }
+
+        // Remove topic association (will be removed automatically by NodeBB, but we do it explicitly)
+        await db.delete(`topic:${tid}:article`);
+
+    } catch (err) {
+        console.error('Error cleaning up associations on topic delete:', err);
     }
 
     return data;

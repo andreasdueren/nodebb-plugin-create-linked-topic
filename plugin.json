@@ -2,7 +2,7 @@
   "id": "nodebb-plugin-create-linked-topic",
   "name": "Create Linked Topic Helper",
   "description": "Helper endpoint to create NodeBB blog comments topics from external sites",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "library": "./library.js",
   "hooks": [
     {
@@ -16,6 +16,10 @@
     {
       "hook": "filter:parse.post",
       "method": "replaceSpeciesCard"
+    },
+    {
+      "hook": "action:topic.delete",
+      "method": "onTopicDelete"
     }
   ],
   "scripts": [
