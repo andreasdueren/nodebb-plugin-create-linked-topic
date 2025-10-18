@@ -182,7 +182,7 @@ plugin.init = async (params) => {
     });
 
     // Helper function to find or create a subcategory
-    async function getOrCreateSubcategory(categoryName, parentCid = 81) {
+    async function getOrCreateSubcategory(categoryName, parentCid = 81, uid = 0) {
         if (!categoryName) {
             return parentCid; // Return parent if no category specified
         }
@@ -191,7 +191,7 @@ plugin.init = async (params) => {
         const db = require.main.require('./src/database');
 
         // Check if subcategory already exists under this parent
-        const children = await Categories.getChildren([parentCid], req.user?.uid || 0);
+        const children = await Categories.getChildren([parentCid], uid);
         if (children && children[0]) {
             const existing = children[0].find(child => child.name === categoryName);
             if (existing) {
@@ -237,7 +237,7 @@ plugin.init = async (params) => {
 
             // Get or create subcategory if category is provided
             const parentCid = parseInt(cid) || 81;
-            const targetCid = category ? await getOrCreateSubcategory(category, parentCid) : parentCid;
+            const targetCid = category ? await getOrCreateSubcategory(category, parentCid, req.user.uid) : parentCid;
             console.log(`Using category ID: ${targetCid} (parent: ${parentCid}, subcategory: ${category || 'none'})`);
 
             // Create the topic using NodeBB's internal API
