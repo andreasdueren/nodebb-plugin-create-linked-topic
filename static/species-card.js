@@ -1,26 +1,69 @@
-$(document).ready(function() {
+// Use NodeBB's ajaxify hooks for client-side navigation
+function loadSpeciesCard() {
     // Check if we're on a topic page
     const topicIdMatch = window.location.pathname.match(/^\/topic\/(\d+)/);
     if (!topicIdMatch) return;
 
     const tid = topicIdMatch[1];
+    console.log('Loading species card for topic:', tid);
 
     // Fetch species data for this topic
     $.get(`/api/species-for-topic/${tid}`, function(data) {
-        if (data.error || !data.species) return;
+        if (data.error || !data.species) {
+            console.log('No species data for this topic');
+            return;
+        }
 
         const species = data.species;
         const atlasUrl = data.atlasUrl;
 
-        // Build species card HTML
+        // Build new species card HTML
         const cardHtml = buildSpeciesCardHTML(species, atlasUrl);
 
-        // Insert card before the first post
+        // Find the first post content
         const firstPost = $('[component="topic"] [component="post/content"]').first();
-        if (firstPost.length) {
-            firstPost.before(cardHtml);
+        if (!firstPost.length) {
+            console.log('First post not found, waiting...');
+            // Try again after a short delay (posts might still be rendering)
+            setTimeout(function() {
+                const retryPost = $('[component="topic"] [component="post/content"]').first();
+                if (retryPost.length) {
+                    insertCard(retryPost, cardHtml);
+                }
+            }, 500);
+            return;
         }
+
+        insertCard(firstPost, cardHtml);
+    }).fail(function(err) {
+        console.log('Failed to fetch species data:', err);
     });
+}
+
+function insertCard(firstPost, cardHtml) {
+    // Check if card already exists
+    const existingCard = firstPost.parent().find('.card[style*="linear-gradient(135deg, #4ade80, #22c55e)"]');
+
+    if (existingCard.length) {
+        console.log('Species card already exists, skipping');
+        return;
+    }
+
+    // Insert card before the first post content
+    console.log('Inserting species card');
+    firstPost.before(cardHtml);
+}
+
+// Listen for NodeBB's AJAX navigation events
+$(window).on('action:ajaxify.end', function(event, data) {
+    console.log('Page loaded:', data.url);
+    loadSpeciesCard();
+});
+
+// Also run on initial page load
+$(document).ready(function() {
+    console.log('Document ready');
+    loadSpeciesCard();
 });
 
 function buildSpeciesCardHTML(species, atlasUrl) {
@@ -56,32 +99,37 @@ function buildSpeciesCardHTML(species, atlasUrl) {
         imageId = species.Picture;
     }
 
-    let html = '<div style="background: linear-gradient(135deg, #4ade80, #22c55e); border-radius: 12px; overflow: hidden; margin-bottom: 20px; color: #0f172a; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">';
+    let html = '';
+    html += '<div class="card mb-3" style="background: linear-gradient(135deg, #4ade80, #22c55e); border: none; color: #0f172a; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">';
+    html += '<div class="row g-0">';
 
-    // Image section (if available)
+    // Image section (if available) - positioned on the left
     if (imageId) {
-        const imageUrl = `https://atlas.growrare.com/image-proxy.php?id=${imageId}&width=800&height=300&fit=cover`;
-        html += `<div style="width: 100%; height: 200px; background-image: url('${imageUrl}'); background-size: cover; background-position: center;"></div>`;
+        const imageUrl = `https://atlas.growrare.com/image-proxy.php?id=${imageId}&width=500&height=500&fit=cover`;
+        html += '<div class="col-md-4 d-flex align-items-center justify-content-center" style="padding: 0; overflow: hidden;">';
+        html += `<img src="${imageUrl}" alt="${commonName}" style="width: 100%; height: 100%; object-fit: cover; display: block;">`;
+        html += '</div>';
     }
 
-    html += '<div style="padding: 20px;">';
-    html += `<h3 style="margin: 0 0 8px 0; font-size: 1.5rem; font-weight: 700;">${commonName}</h3>`;
+    html += '<div class="col-md-8">';
+    html += '<div class="card-body">';
+    html += `<h5 class="card-title fw-bold mb-2">${commonName}</h5>`;
 
     if (scientificName) {
-        html += `<div style="font-size: 1.05rem; margin-bottom: 12px; opacity: 0.85;">${scientificName}</div>`;
+        html += `<p class="card-text mb-2" style="font-size: 1.05rem; opacity: 0.85;">${scientificName}</p>`;
     }
 
     if (category) {
-        html += `<div style="display: inline-block; background: rgba(15, 23, 42, 0.1); padding: 4px 12px; border-radius: 999px; font-size: 0.85rem; font-weight: 600; margin-bottom: 12px;">${category}</div>`;
+        html += `<span class="badge rounded-pill mb-2" style="background: rgba(15, 23, 42, 0.15); color: #0f172a; font-weight: 600;">${category}</span>`;
     }
 
     if (description) {
         const truncatedDesc = description.length > 250 ? description.substring(0, 250) + '...' : description;
-        html += `<div style="font-size: 0.95rem; line-height: 1.6; margin-bottom: 16px; opacity: 0.85;">${truncatedDesc}</div>`;
+        html += `<p class="card-text">${truncatedDesc}</p>`;
     }
 
-    html += `<a href="${atlasUrl}" target="_blank" rel="noopener" style="display: inline-block; background: #0f172a; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; transition: background 0.2s;">📖 View Full Details on Seed Atlas →</a>`;
-    html += '</div></div>';
+    html += `<a href="${atlasUrl}" target="_blank" rel="noopener" class="btn btn-dark">📖 View Full Details on Seed Atlas</a>`;
+    html += '</div></div></div></div>';
 
     return html;
 }
