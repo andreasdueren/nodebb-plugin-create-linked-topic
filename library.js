@@ -172,11 +172,6 @@ plugin.init = async (params) => {
 
     // Handle GET requests (for testing or direct access)
     app.get('/create-linked-topic', async (req, res) => {
-        // Check if user is logged in
-        if (!req.user || !req.user.uid) {
-            return res.redirect('/login?local=1&next=/create-linked-topic');
-        }
-
         // Show simple message if accessed directly
         res.send('This endpoint requires POST data. Please use the "Start a Discussion" button on species pages.');
     });
@@ -229,23 +224,17 @@ plugin.init = async (params) => {
                 return res.status(400).send('Missing required fields');
             }
 
-            // Check if user is logged in
-            if (!req.user || !req.user.uid) {
-                // Redirect to login
-                return res.redirect(`/login?local=1&next=/create-linked-topic`);
-            }
+            // Get bot user UID for creating topics (works for both logged-in and logged-out users)
+            const botUid = await getOrCreateBotUser();
 
             // Get or create subcategory if category is provided
             const parentCid = parseInt(cid) || 81;
-            const targetCid = category ? await getOrCreateSubcategory(category, parentCid, req.user.uid) : parentCid;
+            const targetCid = category ? await getOrCreateSubcategory(category, parentCid, botUid) : parentCid;
             console.log(`Using category ID: ${targetCid} (parent: ${parentCid}, subcategory: ${category || 'none'})`);
 
             // Create the topic using NodeBB's internal API
             const Topics = require.main.require('./src/topics');
             const Posts = require.main.require('./src/posts');
-
-            // Get bot user UID
-            const botUid = await getOrCreateBotUser();
 
             const topicData = await Topics.post({
                 uid: botUid,
