@@ -87,11 +87,16 @@ plugin.init = async (params) => {
                     // If article ID is provided, create the association so NodeBB blog comments plugin can find it
                     if (articleId) {
                         console.log(`Linking article ${articleId} to existing topic ${tid}`);
+                        // Set both storage formats:
+                        // 1. Our custom format for tracking
                         await db.setObject(`article:${articleId}`, {
                             tid: tid,
                             url: url,
                             timestamp: Date.now()
                         });
+                        // 2. Blog comments plugin format (REQUIRED for plugin to work)
+                        await db.setObjectField('blog-comments', articleId, tid);
+                        console.log(`Set blog-comments hash: ${articleId} -> ${tid}`);
                     }
 
                     return res.json({
@@ -176,12 +181,48 @@ plugin.init = async (params) => {
         res.send('This endpoint requires POST data. Please use the "Start a Discussion" button on species pages.');
     });
 
+    // Helper function to find or create a subcategory
+    async function getOrCreateSubcategory(categoryName, parentCid = 81) {
+        if (!categoryName) {
+            return parentCid; // Return parent if no category specified
+        }
+
+        const Categories = require.main.require('./src/categories');
+        const db = require.main.require('./src/database');
+
+        // Check if subcategory already exists under this parent
+        const children = await Categories.getChildren([parentCid], req.user?.uid || 0);
+        if (children && children[0]) {
+            const existing = children[0].find(child => child.name === categoryName);
+            if (existing) {
+                console.log(`Found existing subcategory: ${categoryName} (cid: ${existing.cid})`);
+                return existing.cid;
+            }
+        }
+
+        // Create new subcategory
+        try {
+            const newCategory = await Categories.create({
+                name: categoryName,
+                description: `Species in the ${categoryName} category`,
+                parentCid: parentCid,
+                disabled: 0,
+                order: 1
+            });
+            console.log(`Created new subcategory: ${categoryName} (cid: ${newCategory.cid})`);
+            return newCategory.cid;
+        } catch (err) {
+            console.error(`Error creating subcategory ${categoryName}:`, err);
+            return parentCid; // Fallback to parent on error
+        }
+    }
+
     // Add route to handle topic creation
     app.post('/create-linked-topic', async (req, res) => {
         try {
-            const { title, markdown, cid, tags, id, url, slug } = req.body;
+            const { title, markdown, cid, tags, id, url, slug, category } = req.body;
 
-            console.log('Create linked topic request:', { title, slug, id, url });
+            console.log('Create linked topic request:', { title, slug, id, url, category });
 
             // Validate required fields
             if (!title || !id || !url) {
@@ -194,6 +235,11 @@ plugin.init = async (params) => {
                 return res.redirect(`/login?local=1&next=/create-linked-topic`);
             }
 
+            // Get or create subcategory if category is provided
+            const parentCid = parseInt(cid) || 81;
+            const targetCid = category ? await getOrCreateSubcategory(category, parentCid) : parentCid;
+            console.log(`Using category ID: ${targetCid} (parent: ${parentCid}, subcategory: ${category || 'none'})`);
+
             // Create the topic using NodeBB's internal API
             const Topics = require.main.require('./src/topics');
             const Posts = require.main.require('./src/posts');
@@ -205,7 +251,7 @@ plugin.init = async (params) => {
                 uid: botUid,
                 title: title,
                 content: `[View ${title} on Seed Atlas](${url})`,
-                cid: parseInt(cid) || 81,
+                cid: targetCid,
                 tags: tags ? JSON.parse(tags) : [],
                 timestamp: Date.now()
             });
@@ -235,6 +281,9 @@ plugin.init = async (params) => {
                     id: id,
                     url: url
                 });
+                // CRITICAL: Set blog-comments hash for NodeBB blog comments plugin to find the topic
+                await db.setObjectField('blog-comments', id, tid);
+                console.log(`Set blog-comments hash: ${id} -> ${tid}`);
 
                 // Redirect to the new topic
                 return res.redirect(`/topic/${tid}`);
@@ -389,34 +438,114 @@ function buildSpeciesCard(species, atlasUrl) {
         imageId = species.Picture;
     }
 
-    let html = '<div style="background: linear-gradient(135deg, #4ade80, #22c55e); border-radius: 12px; overflow: hidden; margin-bottom: 20px; color: #0f172a; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">';
+    let html = '';
+    html += '<div class="card mb-3" style="background: linear-gradient(135deg, #4ade80, #22c55e); border: none; color: #0f172a; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">';
+    html += '<div class="row g-0">';
 
-    // Image section (if available)
+    // Image section (if available) - positioned on the left
     if (imageId) {
-        const imageUrl = `https://atlas.growrare.com/image-proxy.php?id=${imageId}&width=800&height=300&fit=cover`;
-        html += `<div style="width: 100%; height: 200px; background-image: url('${imageUrl}'); background-size: cover; background-position: center;"></div>`;
+        const imageUrl = `https://atlas.growrare.com/image-proxy.php?id=${imageId}&width=500&height=500&fit=cover`;
+        html += '<div class="col-md-4 d-flex align-items-center justify-content-center" style="padding: 0; overflow: hidden;">';
+        html += `<img src="${imageUrl}" alt="${commonName}" style="width: 100%; height: 100%; object-fit: cover; display: block;">`;
+        html += '</div>';
     }
 
-    html += '<div style="padding: 20px;">';
-    html += `<h3 style="margin: 0 0 8px 0; font-size: 1.5rem; font-weight: 700;">${commonName}</h3>`;
+    html += '<div class="col-md-8">';
+    html += '<div class="card-body">';
+    html += `<h5 class="card-title fw-bold mb-2">${commonName}</h5>`;
 
     if (scientificName) {
-        html += `<div style="font-size: 1.05rem; margin-bottom: 12px; opacity: 0.85;">${scientificName}</div>`;
+        html += `<p class="card-text mb-2" style="font-size: 1.05rem; opacity: 0.85;">${scientificName}</p>`;
     }
 
     if (category) {
-        html += `<div style="display: inline-block; background: rgba(15, 23, 42, 0.1); padding: 4px 12px; border-radius: 999px; font-size: 0.85rem; font-weight: 600; margin-bottom: 12px;">${category}</div>`;
+        html += `<span class="badge rounded-pill mb-2" style="background: rgba(15, 23, 42, 0.15); color: #0f172a; font-weight: 600;">${category}</span>`;
     }
 
     if (description) {
         const truncatedDesc = description.length > 250 ? description.substring(0, 250) + '...' : description;
-        html += `<div style="font-size: 0.95rem; line-height: 1.6; margin-bottom: 16px; opacity: 0.85;">${truncatedDesc}</div>`;
+        html += `<p class="card-text">${truncatedDesc}</p>`;
     }
 
-    html += `<a href="${atlasUrl}" target="_blank" rel="noopener" style="display: inline-block; background: #0f172a; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; transition: background 0.2s;">📖 View Full Details on Seed Atlas →</a>`;
-    html += '</div></div>';
+    html += `<a href="${atlasUrl}" target="_blank" rel="noopener" class="btn btn-dark">📖 View Full Details on Seed Atlas</a>`;
+    html += '</div></div></div></div>';
 
     return html;
 }
+
+// Hook to replace old species cards with new Bootstrap layout
+plugin.replaceSpeciesCard = async (data) => {
+    console.log('replaceSpeciesCard hook called, data keys:', Object.keys(data));
+
+    try {
+        // Log data structure
+        if (data.postData) {
+            console.log('postData exists, has content:', !!data.postData.content);
+            console.log('postData keys:', Object.keys(data.postData));
+            if (data.postData.content) {
+                console.log('Content length:', data.postData.content.length);
+                console.log('Content preview:', data.postData.content.substring(0, 200));
+                console.log('Has gradient?', data.postData.content.includes('linear-gradient'));
+            }
+        } else {
+            console.log('No postData in data object');
+        }
+
+        // Check if content has an old species card (look for the old gradient pattern)
+        if (!data.postData || !data.postData.content || !data.postData.content.includes('linear-gradient(135deg, #4ade80, #22c55e)')) {
+            console.log('No matching content found, returning data unchanged');
+            return data;
+        }
+
+        const tid = data.postData.tid;
+        console.log('Found species card in topic:', tid);
+        const db = require.main.require('./src/database');
+
+        // Get article association for this topic
+        const articleData = await db.getObject(`topic:${tid}:article`);
+        console.log('Article data:', articleData);
+
+        if (!articleData || !articleData.url) {
+            console.log('No article data found');
+            return data;
+        }
+
+        // Extract species slug from URL
+        const urlMatch = articleData.url.match(/\/variety\/(.+)$/);
+        if (!urlMatch) {
+            console.log('URL does not match variety pattern');
+            return data;
+        }
+
+        const slug = urlMatch[1];
+        console.log('Species slug:', slug);
+
+        // Fetch fresh species data
+        const speciesData = await fetchSpeciesData(slug);
+        console.log('Fetched species data:', speciesData ? 'Success' : 'Failed');
+
+        if (!speciesData) {
+            return data;
+        }
+
+        // Build new card HTML
+        const newCardHtml = buildSpeciesCard(speciesData, articleData.url);
+        console.log('Built new card HTML, length:', newCardHtml.length);
+
+        // Replace old card with new card (match any div with the gradient)
+        const oldCardPattern = /<div style="background: linear-gradient\(135deg, #4ade80, #22c55e\);[^>]*>[\s\S]*?(?:<\/div>\s*){3,4}/;
+        const beforeLength = data.postData.content.length;
+        data.postData.content = data.postData.content.replace(oldCardPattern, newCardHtml);
+        const afterLength = data.postData.content.length;
+
+        console.log('Replacement result - before:', beforeLength, 'after:', afterLength, 'changed:', beforeLength !== afterLength);
+        console.log('Successfully replaced old species card in post', data.postData.pid);
+    } catch (err) {
+        console.error('Error replacing species card:', err);
+        console.error('Stack:', err.stack);
+    }
+
+    return data;
+};
 
 module.exports = plugin;
